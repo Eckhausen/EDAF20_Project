@@ -3,6 +3,7 @@ package krusty;
 import spark.Request;
 import spark.Response;
 
+import java.sql.*;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
@@ -13,20 +14,38 @@ public class Database {
 	/**
 	 * Modify it to fit your environment and then use this string when connecting to your database!
 	 */
-	private static final String jdbcString = "jdbc:mysql://localhost/krusty";
+	//private static final String jdbcString = "jdbc:mysql://localhost/krusty";
+	private static final String jdbcString = "jdbc:mysql://localhost:3306/krusty?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
 
 	// For use with MySQL or PostgreSQL
-	private static final String jdbcUsername = "<CHANGE ME>";
-	private static final String jdbcPassword = "<CHANGE ME>";
+	private static final String jdbcUsername = "root";
+	private static final String jdbcPassword = "password";
 
-	public void connect() {
+	public Connection connect() {
 		// Connect to database here
+		Connection connection = null;
+		try {
+			Class.forName("com.mysql.cj.jdbc.Driver");
+			connection = DriverManager.getConnection(jdbcString, jdbcUsername, jdbcPassword);
+		} catch (ClassNotFoundException | SQLException e) {
+			e.printStackTrace();
+		}
+		return connection;
 	}
 
 	// TODO: Implement and change output in all methods below!
 
 	public String getCustomers(Request req, Response res) {
-		return "{}";
+		String json = "";
+		String query = "SELECT Customer_name AS name, Adress AS address FROM customers";
+		try(Connection connection = connect()){
+			PreparedStatement ps = connection.prepareStatement(query);
+			ResultSet rs = ps.executeQuery();
+			json = Jsonizer.toJson(rs, "customers");
+		} catch(SQLException e){
+			e.printStackTrace();
+		}
+		return json;
 	}
 
 	public String getRawMaterials(Request req, Response res) {

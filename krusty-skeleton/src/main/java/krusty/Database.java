@@ -41,7 +41,7 @@ public class Database {
 
 	public String getCustomers(Request req, Response res) {
 		String json = "";
-		String query = "SELECT Customer_name AS name, Adress AS address FROM krusty.customers";
+		String query = "SELECT Customer_name AS name, Address AS address FROM customers";
 		try(Connection connection = connect()){
 			PreparedStatement ps = connection.prepareStatement(query);
 			ResultSet rs = ps.executeQuery();
@@ -70,7 +70,20 @@ public class Database {
 	}
 
 	public String getRecipes(Request req, Response res) {
-		return "{}";
+		String json = "";
+		String query = "SELECT krusty.recipes.Cookie_name AS cookie, " +
+				"krusty.recipes.Ingredient_name AS raw_material, " +
+				"krusty.recipes.Amount as amount, " +
+				"krusty.recipes.rUnit AS unit " +
+				"FROM recipes";
+		try(Connection connection = connect()){
+			PreparedStatement ps = connection.prepareStatement(query);
+			ResultSet rs = ps.executeQuery();
+			json = Jsonizer.toJson(rs, "recipes");
+		} catch(SQLException e){
+			e.printStackTrace();
+		}
+		return json;
 	}
 
 	public String getPallets(Request req, Response res) {

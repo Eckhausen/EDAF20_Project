@@ -97,7 +97,24 @@ public class Database {
 	}
 
 	public String getPallets(Request req, Response res) {
-		return "{\"pallets\":[]}";
+		String json = "";
+		String query = "SELECT Pallet_id AS id, " +
+				"Cookie_Name AS cookie, " +
+				"Production_date AS production_date, " +
+				"orders.Customer_name AS customer, " +
+				"Blocked AS blocked " +
+				"FROM pallets " +
+				"LEFT JOIN orders ON " +
+				"orders.Order_id = pallets.Order_id";
+		try(Connection connection = connect()){
+			PreparedStatement ps = connection.prepareStatement(query);
+			ResultSet rs = ps.executeQuery();
+			json = Jsonizer.toJson(rs, "pallets");
+		} catch(SQLException e){
+			e.printStackTrace();
+		}
+		return json;
+		//return "{\"pallets\":[1]}";
 	}
 
 	public String reset(Request req, Response res) {

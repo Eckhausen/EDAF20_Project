@@ -2,7 +2,9 @@ package krusty;
 
 import spark.Request;
 import spark.Response;
-
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.*;
 import java.util.Arrays;
 import java.util.Map;
@@ -25,6 +27,8 @@ public class Database {
 	// For use with MySQL or PostgreSQL
 	private static final String jdbcUsername = "root";
 	private static final String jdbcPassword = "password";
+
+	private static final int ERROR = -1, UNKNOWN_COOKIE = -2, PALLET_OK = 1;
 
 	public Connection connect() {
 		// Connect to database here

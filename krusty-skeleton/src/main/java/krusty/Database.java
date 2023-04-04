@@ -7,6 +7,7 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.ArrayList;
 
 import static krusty.Jsonizer.toJson;
 
@@ -36,8 +37,6 @@ public class Database {
 		}
 		return connection;
 	}
-
-	// TODO: Implement and change output in all methods below!
 
 	public String getCustomers(Request req, Response res) {
 		String json = "";
@@ -98,14 +97,55 @@ public class Database {
 
 	public String getPallets(Request req, Response res) {
 		String json = "";
+		//Inkommande GET URL:
+		//from=2018-01-01&to=2020-01-01&cookie=Amneris
+		//Resultat:
+		/*
+		* SELECT Pallet_id AS id, Cookie_Name AS cookie, Production_date AS production_date,
+		* orders.Customer_name AS customer, Blocked AS blocked
+		* FROM pallets
+		* JOIN orders ON orders.Order_id = pallets.Order_id
+		* WHERE production_date >= ?
+		* AND production_date <= ?
+		* AND cookie = ?
+		* ORDER BY production_date DESC;
+		*
+		* */
+
 		String query = "SELECT Pallet_id AS id, " +
 				"Cookie_Name AS cookie, " +
 				"Production_date AS production_date, " +
 				"orders.Customer_name AS customer, " +
 				"Blocked AS blocked " +
 				"FROM pallets " +
-				"LEFT JOIN orders ON " +
+				"JOIN orders ON " +
 				"orders.Order_id = pallets.Order_id";
+
+		ArrayList<String> values = new ArrayList<>();
+		StringBuilder whereClause = new StringBuilder();
+
+		if (req.queryParams("from") != null) {
+			addCondition(whereClause, "production_date >= ?");
+			values.add(req.queryParams("from"));
+		}
+		if (req.queryParams("to") != null) {
+			addCondition(whereClause, "production_date <= ?");
+			values.add(req.queryParams("to"));
+		}
+		if (req.queryParams("cookie") != null) {
+			addCondition(whereClause, "cookie = ?");
+			values.add(req.queryParams("cookie"));
+		}
+		if (req.queryParams("blocked") != null) {
+			addCondition(whereClause, "blocked = ? ");
+			values.add(req.queryParams("blocked").equals("yes") ? "1" : "0");
+		}
+
+		//Bygg vidare på queryn om det finns where conditions
+		if (whereClause.length() > 0) {
+			query +=  whereClause.toString() + " ORDER BY production_date DESC;";
+		}
+
 		try(Connection connection = connect()){
 			PreparedStatement ps = connection.prepareStatement(query);
 			ResultSet rs = ps.executeQuery();
@@ -114,7 +154,7 @@ public class Database {
 			e.printStackTrace();
 		}
 		return json;
-		//return "{\"pallets\":[1]}";
+		//return "{\"pallets\":[]}";
 	}
 
 	public String reset(Request req, Response res) {

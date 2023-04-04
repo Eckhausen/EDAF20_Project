@@ -21,6 +21,8 @@ import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 
+import java.nio.charset.StandardCharsets;
+
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class KrustyTests {
 	public static final String BASE_URL = "http://localhost:" + ServerMain.PORT + ServerMain.API_ENTRYPOINT + "/";
@@ -127,7 +129,7 @@ public class KrustyTests {
 	protected String readFile(String file) {
 		try {
 			String path = "src/test/resources/" + file;
-			return new String(Files.readAllBytes(Paths.get(path)));
+			return new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			e.printStackTrace();
 			fail(e.getMessage());

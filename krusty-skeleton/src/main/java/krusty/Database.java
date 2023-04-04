@@ -143,16 +143,16 @@ public class Database {
 
 		//Bygg vidare på queryn om det finns where conditions
 		if (whereClause.length() > 0) {
-			query +=  whereClause.toString() + " ORDER BY production_date DESC;";
+			query +=  whereClause.toString() + " ORDER BY production_date DESC";
 		}
 
 		try(Connection connection = connect()){
 			PreparedStatement ps = connection.prepareStatement(query);
 
-				for (int i = 0; i < values.size(); i++) {
-					ps.setString(i + 1, values.get(i)); //setString metoden börjar på alltid på 1. Därav i+1
-				}
-				ResultSet rs = ps.executeQuery();
+			for (int i = 0; i < values.size(); i++) {
+				ps.setString(i + 1, values.get(i)); //setString metoden börjar på alltid på 1. Därav i+1
+			}
+			ResultSet rs = ps.executeQuery();
 			json = Jsonizer.toJson(rs, "pallets");
 		} catch(SQLException e){
 			e.printStackTrace();
@@ -171,12 +171,161 @@ public class Database {
 		}
 		whereClause.append(condition);
 	}
-	//TODO
-	public String reset(Request req, Response res) {
-		return "{}";
-	}
+
+
+	public String reset(Request req, Response res) throws SQLException {
+        		String[] resetTables = {"Customers", "Products", "Ingredients", "Recipes", "Pallets"};
+        		setForeignKeyCheck(false);
+
+        		for(String table : resetTables){
+        			try (Connection connection = connect()){
+        			Statement stmt = connection.createStatement();
+
+        				// Truncate the table
+        				String sql = "TRUNCATE TABLE " + table; //Resetar alla tables i stringvektorn
+        				stmt.executeUpdate(sql);
+
+						switch (table) {
+							case "Customers":
+								initData("Customers.sql");
+								break;
+							case "Products":
+								initData("Products.sql");
+								break;
+							case "Recipes":
+								initData("Recipes.sql");
+								break;
+							case "Ingredients":
+								initData("Ingredients.sql");
+								break;
+						}
+
+        			}catch(SQLException e){
+                     			e.printStackTrace();
+                     		}
+        		}
+        		setForeignKeyCheck(true);
+        		return "{\n\t\"status\": \"ok\"\n}";
+        	}
+
+        private void initData(String file) throws SQLException{
+                String data = readFile(file);
+                try(Connection connection = connect()){
+                    connection.createStatement().execute(data);
+                } catch (SQLException e){
+                    e.printStackTrace();
+                }
+            }
+
+    	private void setForeignKeyCheck(boolean on) throws SQLException {
+            // Create a statement object to execute the SQL query
+           try(Connection connection = connect()) {
+                   Statement statement = connection.createStatement();
+            // Build the SQL query to set the FOREIGN_KEY_CHECKS value to 1 or 0
+            String sql = "SET FOREIGN_KEY_CHECKS = " + (on ? "1" : "0") + ";";
+            // Execute the SQL query to set the FOREIGN_KEY_CHECKS value
+            statement.executeQuery(sql);
+            // Close the statement object to release resources
+            statement.close();
+            }catch(SQLException e){
+                e.printStackTrace();
+            }
+        }
+
+        /** Reads a given file from disk and returns the content of the file as a string. */
+        	private String readFile(String file) {
+        		try {
+        			String path = "src/main/resources/" + file;
+        			return new String(Files.readAllBytes(Paths.get(path)));
+        		} catch (IOException e) {
+        			e.printStackTrace();
+        		}
+        		return "";
+        	}
 
 	public String createPallet(Request req, Response res) {
-		return "{}";
-	}
+		//TEST#####################################
+			String cookieName = req.queryParams("cookie");
+			if (cookieName == null || cookieName.isEmpty()) {
+				res.status(400);
+				return "{\"status\":\"error\"}";
+			}
+
+			String result = "{}";
+			try (Connection connection = connect()) {
+				// Start the transaction
+				connection.setAutoCommit(false);
+
+				try {
+					// Check if the cookie exists
+					String cookieExistsQuery = "SELECT COUNT(*) as count FROM products WHERE Cookie_name = ?";
+					PreparedStatement cookieExistsPs = connection.prepareStatement(cookieExistsQuery);
+					cookieExistsPs.setString(1, cookieName);
+					ResultSet cookieExistsRs = cookieExistsPs.executeQuery();
+					if(cookieExistsRs.next() == false){
+						connection.rollback();
+						return "{\"status\":\"unknown cookie\"}";
+					}
+
+					// Insert a new pallet and retrieve the generated id
+					String insertPalletQuery = "INSERT INTO pallets (Cookie_Name, Production_date, Delivery_date, Blocked, Location) VALUES (?, DATE(NOW()), ?, ?, ?)";
+					PreparedStatement insertPalletPs = connection.prepareStatement(insertPalletQuery, Statement.RETURN_GENERATED_KEYS);
+					insertPalletPs.setString(1, cookieName);
+					insertPalletPs.setString(2, "2023-04-14");
+					insertPalletPs.setInt(3, 0);
+					insertPalletPs.setString(4, "Test");
+
+
+
+					int affectedRows = insertPalletPs.executeUpdate();
+					ResultSet generatedKeys = insertPalletPs.getGeneratedKeys();
+					int palletId = -1;
+
+					if (generatedKeys.next()) {
+						palletId = generatedKeys.getInt(1);
+					}
+
+					if (affectedRows > 0 && palletId != -1) {
+						// Retrieve the recipe for the specified cookie
+						String recipeQuery = "SELECT Ingredient_name, Amount FROM recipes WHERE Cookie_name = ?";
+						PreparedStatement recipePs = connection.prepareStatement(recipeQuery);
+						recipePs.setString(1, cookieName);
+						ResultSet recipeRs = recipePs.executeQuery();
+
+						// Update stock quantities of raw materials used in the recipe
+						String updateStockQuery = "UPDATE ingredients SET Quantity = Quantity - ? WHERE Ingredient_name = ?";
+						PreparedStatement updateStockPs = connection.prepareStatement(updateStockQuery);
+
+						while (recipeRs.next()) {
+							String ingredientName = recipeRs.getString("Ingredient_name");
+							double amount = recipeRs.getDouble("Amount");
+
+							updateStockPs.setDouble(1, amount);
+							updateStockPs.setString(2, ingredientName);
+							updateStockPs.executeUpdate();
+						}
+
+						// Commit the transaction
+						connection.commit();
+						result = "{\"status\":\"ok\", \"id\":" + palletId + "}";
+					} else {
+						// Something went wrong, rollback the transaction
+						connection.rollback();
+						result = "{\"status\":\"error\"}";
+					}
+				} catch (SQLException e) {
+					// If any exception occurs, rollback the transaction
+					connection.rollback();
+					e.printStackTrace();
+					result = "{\"status\":\"error\"}";
+				} finally {
+					// Set auto-commit mode back to true
+					connection.setAutoCommit(true);
+				}
+			} catch (SQLException e) {
+				e.printStackTrace();
+				result = "{\"status\":\"error\"}";
+			}
+			return result;
+		}
 }

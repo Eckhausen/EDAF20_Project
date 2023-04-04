@@ -148,7 +148,11 @@ public class Database {
 
 		try(Connection connection = connect()){
 			PreparedStatement ps = connection.prepareStatement(query);
-			ResultSet rs = ps.executeQuery();
+
+				for (int i = 0; i < values.size(); i++) {
+					ps.setString(i + 1, values.get(i)); //setString metoden börjar på alltid på 1. Därav i+1
+				}
+				ResultSet rs = ps.executeQuery();
 			json = Jsonizer.toJson(rs, "pallets");
 		} catch(SQLException e){
 			e.printStackTrace();
@@ -157,6 +161,17 @@ public class Database {
 		//return "{\"pallets\":[]}";
 	}
 
+
+	// hjälpmetod som bygger vidare på queryn
+	private void addCondition(StringBuilder whereClause, String condition) {
+		if (whereClause.length() == 0) {
+			whereClause.append(" WHERE ");
+		} else {
+			whereClause.append(" AND ");
+		}
+		whereClause.append(condition);
+	}
+	//TODO
 	public String reset(Request req, Response res) {
 		return "{}";
 	}

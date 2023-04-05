@@ -178,77 +178,76 @@ public class Database {
 
 
 	public String reset(Request req, Response res) throws SQLException {
-        		String[] resetTables = {"Customers", "Products", "Ingredients", "Recipes", "Pallets"};
-        		setForeignKeyCheck(false);
+	String[] resetTables = {"Customers", "Products", "Ingredients", "Recipes", "Pallets"};
+	setForeignKeyCheck(false);
 
-        		for(String table : resetTables){
-        			try (Connection connection = connect()){
-        			Statement stmt = connection.createStatement();
+	for(String table : resetTables){
+		try (Connection connection = connect()){
+		Statement stmt = connection.createStatement();
 
-        				// Truncate the table
-        				String sql = "TRUNCATE TABLE " + table; //Resetar alla tables i stringvektorn
-        				stmt.executeUpdate(sql);
+			// Truncate the table
+			String sql = "TRUNCATE TABLE " + table; //Resetar alla tables i stringvektorn
+			stmt.executeUpdate(sql);
 
-						switch (table) {
-							case "Customers":
-								initData("Customers.sql");
-								break;
-							case "Products":
-								initData("Products.sql");
-								break;
-							case "Recipes":
-								initData("Recipes.sql");
-								break;
-							case "Ingredients":
-								initData("Ingredients.sql");
-								break;
+					switch (table) {
+						case "Customers":
+							initData("Customers.sql");
+							break;
+						case "Products":
+							initData("Products.sql");
+							break;
+						case "Recipes":
+							initData("Recipes.sql");
+							break;
+						case "Ingredients":
+							initData("Ingredients.sql");
+							break;
+					}
+
+				}catch(SQLException e){
+							e.printStackTrace();
 						}
+			}
+			setForeignKeyCheck(true);
+			return "{\n\t\"status\": \"ok\"\n}";
+		}
 
-        			}catch(SQLException e){
-                     			e.printStackTrace();
-                     		}
-        		}
-        		setForeignKeyCheck(true);
-        		return "{\n\t\"status\": \"ok\"\n}";
-        	}
+	private void initData(String file) throws SQLException{
+			String data = readFile(file);
+			try(Connection connection = connect()){
+				connection.createStatement().execute(data);
+			} catch (SQLException e){
+				e.printStackTrace();
+			}
+		}
 
-        private void initData(String file) throws SQLException{
-                String data = readFile(file);
-                try(Connection connection = connect()){
-                    connection.createStatement().execute(data);
-                } catch (SQLException e){
-                    e.printStackTrace();
-                }
-            }
+	private void setForeignKeyCheck(boolean on) throws SQLException {
+		// Create a statement object to execute the SQL query
+	   try(Connection connection = connect()) {
+			   Statement statement = connection.createStatement();
+		// Build the SQL query to set the FOREIGN_KEY_CHECKS value to 1 or 0
+		String sql = "SET FOREIGN_KEY_CHECKS = " + (on ? "1" : "0") + ";";
+		// Execute the SQL query to set the FOREIGN_KEY_CHECKS value
+		statement.executeQuery(sql);
+		// Close the statement object to release resources
+		statement.close();
+		}catch(SQLException e){
+			e.printStackTrace();
+		}
+	}
 
-    	private void setForeignKeyCheck(boolean on) throws SQLException {
-            // Create a statement object to execute the SQL query
-           try(Connection connection = connect()) {
-                   Statement statement = connection.createStatement();
-            // Build the SQL query to set the FOREIGN_KEY_CHECKS value to 1 or 0
-            String sql = "SET FOREIGN_KEY_CHECKS = " + (on ? "1" : "0") + ";";
-            // Execute the SQL query to set the FOREIGN_KEY_CHECKS value
-            statement.executeQuery(sql);
-            // Close the statement object to release resources
-            statement.close();
-            }catch(SQLException e){
-                e.printStackTrace();
-            }
-        }
-
-        /** Reads a given file from disk and returns the content of the file as a string. */
-        	private String readFile(String file) {
-        		try {
-        			String path = "src/main/resources/" + file;
-        			return new String(Files.readAllBytes(Paths.get(path)));
-        		} catch (IOException e) {
-        			e.printStackTrace();
-        		}
-        		return "";
-        	}
+	/** Reads a given file from disk and returns the content of the file as a string. */
+		private String readFile(String file) {
+			try {
+				String path = "src/main/resources/" + file;
+				return new String(Files.readAllBytes(Paths.get(path)));
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			return "";
+		}
 
 	public String createPallet(Request req, Response res) {
-		//TEST#####################################
 			String cookieName = req.queryParams("cookie");
 			if (cookieName == null || cookieName.isEmpty()) {
 				res.status(400);

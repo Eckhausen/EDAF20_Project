@@ -3,6 +3,7 @@ package krusty;
 import spark.Request;
 import spark.Response;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.*;
@@ -10,6 +11,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.ArrayList;
+import java.util.List;
 
 import static krusty.Jsonizer.toJson;
 
@@ -27,8 +29,6 @@ public class Database {
 	// For use with MySQL or PostgreSQL
 	private static final String jdbcUsername = "root";
 	private static final String jdbcPassword = "password";
-
-	private static final int ERROR = -1, UNKNOWN_COOKIE = -2, PALLET_OK = 1;
 
 	public Connection connect() {
 		// Connect to database here
@@ -176,81 +176,107 @@ public class Database {
 		whereClause.append(condition);
 	}
 
-
 	public String reset(Request req, Response res) throws SQLException {
-	String[] resetTables = {"Customers", "Products", "Ingredients", "Recipes", "Pallets"};
-	setForeignKeyCheck(false);
+		String[] resetTables = {"Customers", "Products", "Ingredients", "Recipes"};
+		Connection connection = null;
+		try {
+			connection = connect();
+			connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+			connection.setAutoCommit(false);
 
-	for(String table : resetTables){
-		try (Connection connection = connect()){
-		Statement stmt = connection.createStatement();
-
-			// Truncate the table
-			String sql = "TRUNCATE TABLE " + table; //Resetar alla tables i stringvektorn
-			stmt.executeUpdate(sql);
-
-					switch (table) {
-						case "Customers":
-							initData("Customers.sql");
-							break;
-						case "Products":
-							initData("Products.sql");
-							break;
-						case "Recipes":
-							initData("Recipes.sql");
-							break;
-						case "Ingredients":
-							initData("Ingredients.sql");
-							break;
-					}
-
-				}catch(SQLException e){
-							e.printStackTrace();
-						}
+			dropAndCreateTables(connection);
+			for (String table : resetTables) {
+				initData(connection, table);
 			}
-			setForeignKeyCheck(true);
-			return "{\n\t\"status\": \"ok\"\n}";
-		}
-
-	private void initData(String file) throws SQLException{
-			String data = readFile(file);
-			try(Connection connection = connect()){
-				connection.createStatement().execute(data);
-			} catch (SQLException e){
-				e.printStackTrace();
-			}
-		}
-
-	private void setForeignKeyCheck(boolean on) throws SQLException {
-		// Create a statement object to execute the SQL query
-	   try(Connection connection = connect()) {
-			   Statement statement = connection.createStatement();
-		// Build the SQL query to set the FOREIGN_KEY_CHECKS value to 1 or 0
-		String sql = "SET FOREIGN_KEY_CHECKS = " + (on ? "1" : "0") + ";";
-		// Execute the SQL query to set the FOREIGN_KEY_CHECKS value
-		statement.executeQuery(sql);
-		// Close the statement object to release resources
-		statement.close();
-		}catch(SQLException e){
+			connection.commit();
+		} catch (SQLException e) {
 			e.printStackTrace();
+			if (connection != null) {
+				try {
+					connection.rollback();
+				} catch (SQLException rollbackException) {
+					rollbackException.printStackTrace();
+				}
+			}
+			return "{\"status\": \"error\"}";
+		} finally {
+			if (connection != null) {
+				try {
+					connection.setAutoCommit(true);
+					connection.close();
+				} catch (SQLException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return "{\"status\": \"ok\"}";
+	}
+
+
+	//Vi försökte med multiple statements i ett script men tyvärr gick det inte så bra
+	//eftersom det inte finns en inbyggd metod i jdbc för detta.
+	private void dropAndCreateTables(Connection connection) throws SQLException {
+		try (Statement statement = connection.createStatement()) {
+			statement.execute("SET FOREIGN_KEY_CHECKS = 0");
+
+			statement.execute("DROP TABLE IF EXISTS pallets, order_amount, orders, recipes, ingredients, " +
+					"customers, products");
+
+			statement.execute("CREATE TABLE products (Cookie_name VARCHAR(50) primary key)");
+
+			statement.execute("CREATE TABLE customers (Customer_name VARCHAR(50), Address VARCHAR(50) not null, " +
+					"primary key(Customer_Name))");
+
+			statement.execute("CREATE TABLE orders (Order_id int auto_increment primary key, Order_date DATE not null, " +
+					"Customer_name VARCHAR(50) not null, foreign key(Customer_Name) references customers(Customer_Name))");
+
+			statement.execute("CREATE TABLE ingredients (Ingredient_name VARCHAR(50), Quantity int not null, " +
+					"iUnit VARCHAR(50) not null, Arrival_date DATE not null, Last_order_amount int not null, " +
+					"primary key(Ingredient_Name))");
+
+			statement.execute("CREATE TABLE order_Amount (numPallets int not null, " +
+					"Cookie_name VARCHAR(50) not null, Order_id INT not null, " +
+					"primary key(Order_id, Cookie_name), foreign key(Order_id) " +
+					"references orders(Order_id), foreign key(Cookie_name) references products(Cookie_name))");
+
+			statement.execute("CREATE TABLE recipes (Cookie_name VARCHAR(50), Ingredient_name VARCHAR(50), " +
+					"Amount int not null, rUnit VARCHAR(50) not null, primary key(Ingredient_name, Cookie_name), " +
+					"foreign key(Ingredient_name) references ingredients(Ingredient_name), foreign key(Cookie_name) " +
+					"references products(Cookie_name))");
+
+			statement.execute("CREATE TABLE pallets (Pallet_id int auto_increment, Cookie_Name VARCHAR(50), " +
+					"Production_date DATE not null, Delivery_date DATE not null, Blocked BOOLEAN not null, " +
+					"Location VARCHAR(50) not null, " + "Order_id int, primary key(Pallet_id), foreign key(Order_id) " +
+					"references orders(Order_id), " + "foreign key(Cookie_Name) references products(Cookie_Name))");
+
+			statement.execute("SET FOREIGN_KEY_CHECKS = 1");
 		}
 	}
+
+
+
+
+	private void initData(Connection connection, String table) throws SQLException {
+			String data = readFile(table + ".sql");
+			connection.createStatement().execute(data);
+		}
+
+
 
 	/** Reads a given file from disk and returns the content of the file as a string. */
 		private String readFile(String file) {
 			try {
 				String path = "src/main/resources/" + file;
-				return new String(Files.readAllBytes(Paths.get(path)));
+				return new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 			return "";
 		}
 
-	public String createPallet(Request req, Response res) {
+		public String createPallet(Request req, Response res) {
 			String cookieName = req.queryParams("cookie");
 			if (cookieName == null || cookieName.isEmpty()) {
-				res.status(400);
 				return "{\"status\":\"error\"}";
 			}
 
@@ -277,7 +303,6 @@ public class Database {
 					insertPalletPs.setString(2, "2023-04-14");
 					insertPalletPs.setInt(3, 0);
 					insertPalletPs.setString(4, "Test");
-
 
 
 					int affectedRows = insertPalletPs.executeUpdate();

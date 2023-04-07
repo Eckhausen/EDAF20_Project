@@ -161,7 +161,7 @@ public class Database {
 			PreparedStatement ps = connection.prepareStatement(query);
 
 			for (int i = 0; i < values.size(); i++) {
-				ps.setString(i + 1, values.get(i)); //setString metoden börjar på alltid på 1. Därav i+1
+				ps.setString(i + 1, values.get(i)); //setString metoden börjar alltid på 1. Därav i+1
 			}
 			ResultSet rs = ps.executeQuery();
 			json = Jsonizer.toJson(rs, "pallets");
@@ -285,7 +285,7 @@ public class Database {
 			try (Connection connection = connect()) {
 				// Start the transaction
 				connection.setAutoCommit(false);
-
+				connection.setTransactionIsolation(connection.TRANSACTION_SERIALIZABLE);
 				try {
 					// Check if the cookie exists
 					String cookieExistsQuery = "SELECT * FROM products WHERE Cookie_name = ?";
@@ -293,18 +293,18 @@ public class Database {
 					cookieExistsPs.setString(1, cookieName);
 					ResultSet cookieExistsRs = cookieExistsPs.executeQuery();
 					if(cookieExistsRs.next() == false){
-						connection.rollback();
 						return "{\"status\":\"unknown cookie\"}";
 					}
 
 					// Insert a new pallet and retrieve the generated id
-					String insertPalletQuery = "INSERT INTO pallets (Cookie_Name, Production_date, Delivery_date, Blocked, Location) VALUES (?, DATE(NOW()), ?, ?, ?)";
-					PreparedStatement insertPalletPs = connection.prepareStatement(insertPalletQuery, Statement.RETURN_GENERATED_KEYS);
+					String insertPalletQuery = "INSERT INTO pallets (Cookie_Name, Production_date, Delivery_date, " +
+							"Blocked, Location) VALUES (?, DATE(NOW()), ?, ?, ?)";
+					PreparedStatement insertPalletPs = connection.prepareStatement(insertPalletQuery,
+							Statement.RETURN_GENERATED_KEYS);
 					insertPalletPs.setString(1, cookieName);
 					insertPalletPs.setString(2, "2023-05-08");
 					insertPalletPs.setInt(3, 0);
 					insertPalletPs.setString(4, "Test");
-
 
 					int affectedRows = insertPalletPs.executeUpdate();
 					ResultSet generatedKeys = insertPalletPs.getGeneratedKeys();
@@ -329,7 +329,7 @@ public class Database {
 							String ingredientName = recipeRs.getString("Ingredient_name");
 							double amount = recipeRs.getDouble("Amount");
 
-							updateStockPs.setDouble(1, amount);
+							updateStockPs.setDouble(1, amount * 54);
 							updateStockPs.setString(2, ingredientName);
 							updateStockPs.executeUpdate();
 						}

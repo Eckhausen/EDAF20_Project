@@ -108,7 +108,7 @@ public class Database {
 		* SELECT Pallet_id AS id, Cookie_Name AS cookie, Production_date AS production_date,
 		* orders.Customer_name AS customer, Blocked AS blocked
 		* FROM pallets
-		* JOIN orders ON orders.Order_id = pallets.Order_id
+		* LEFT JOIN orders ON orders.Order_id = pallets.Order_id
 		* WHERE production_date >= ?
 		* AND production_date <= ?
 		* AND cookie = ?
@@ -116,14 +116,21 @@ public class Database {
 		*
 		* */
 
-		String query = "SELECT Pallet_id AS id, " +
+		/*String query = "SELECT Pallet_id AS id, " +
 				"Cookie_Name AS cookie, " +
 				"Production_date AS production_date, " +
-				"orders.Customer_name AS customer, " +
+				"Customer_name AS customer, " +
 				"Blocked AS blocked " +
 				"FROM pallets " +
-				"JOIN orders ON " +
-				"orders.Order_id = pallets.Order_id";
+				"LEFT JOIN orders ON " +
+				"orders.Order_id = pallets.Order_id";*/
+
+		String query = "SELECT Cookie_Name AS cookie, " +
+				"Blocked AS blocked " +
+				"FROM pallets " +
+				"LEFT JOIN orders ON " +
+				"orders.Order_id = pallets.Order_id " +
+				"ORDER BY cookie ASC";
 
 		ArrayList<String> values = new ArrayList<>();
 		StringBuilder whereClause = new StringBuilder();
@@ -142,7 +149,7 @@ public class Database {
 		}
 		if (req.queryParams("blocked") != null) {
 			addCondition(whereClause, "blocked = ? ");
-			values.add(req.queryParams("blocked").equals("yes") ? "1" : "0");
+			values.add(req.queryParams("blocked").equals("yes") ? "yes" : "no");
 		}
 
 		//Bygg vidare på queryn om det finns where conditions
@@ -212,7 +219,6 @@ public class Database {
 		return "{\"status\": \"ok\"}";
 	}
 
-
 	//Vi försökte med multiple statements i ett script men tyvärr gick det inte så bra
 	//eftersom det inte finns en inbyggd metod i jdbc för detta.
 	private void dropAndCreateTables(Connection connection) throws SQLException {
@@ -253,15 +259,10 @@ public class Database {
 		}
 	}
 
-
-
-
 	private void initData(Connection connection, String table) throws SQLException {
 			String data = readFile(table + ".sql");
 			connection.createStatement().execute(data);
 		}
-
-
 
 	/** Reads a given file from disk and returns the content of the file as a string. */
 		private String readFile(String file) {
@@ -287,7 +288,7 @@ public class Database {
 
 				try {
 					// Check if the cookie exists
-					String cookieExistsQuery = "SELECT COUNT(*) as count FROM products WHERE Cookie_name = ?";
+					String cookieExistsQuery = "SELECT * FROM products WHERE Cookie_name = ?";
 					PreparedStatement cookieExistsPs = connection.prepareStatement(cookieExistsQuery);
 					cookieExistsPs.setString(1, cookieName);
 					ResultSet cookieExistsRs = cookieExistsPs.executeQuery();
@@ -300,7 +301,7 @@ public class Database {
 					String insertPalletQuery = "INSERT INTO pallets (Cookie_Name, Production_date, Delivery_date, Blocked, Location) VALUES (?, DATE(NOW()), ?, ?, ?)";
 					PreparedStatement insertPalletPs = connection.prepareStatement(insertPalletQuery, Statement.RETURN_GENERATED_KEYS);
 					insertPalletPs.setString(1, cookieName);
-					insertPalletPs.setString(2, "2023-04-14");
+					insertPalletPs.setString(2, "2023-05-08");
 					insertPalletPs.setInt(3, 0);
 					insertPalletPs.setString(4, "Test");
 

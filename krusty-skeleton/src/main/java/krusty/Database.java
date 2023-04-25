@@ -79,7 +79,6 @@ public class Database {
 			e.printStackTrace();
 		}
 		return json;
-		//return "{\"cookies\":[]}";
 	}
 
 	public String getRecipes(Request req, Response res) {
@@ -101,36 +100,14 @@ public class Database {
 
 	public String getPallets(Request req, Response res) {
 		String json = "";
-		//Inkommande GET URL:
-		//from=2018-01-01&to=2020-01-01&cookie=Amneris
-		//Resultat:
-		/*
-		* SELECT Pallet_id AS id, Cookie_Name AS cookie, Production_date AS production_date,
-		* orders.Customer_name AS customer, Blocked AS blocked
-		* FROM pallets
-		* LEFT JOIN orders ON orders.Order_id = pallets.Order_id
-		* WHERE production_date >= ?
-		* AND production_date <= ?
-		* AND cookie = ?
-		* ORDER BY production_date DESC;
-		*
-		* */
-
-		/*String query = "SELECT Pallet_id AS id, " +
+		String query = "SELECT Pallet_id AS id, " +
 				"Cookie_Name AS cookie, " +
 				"Production_date AS production_date, " +
 				"Customer_name AS customer, " +
-				"Blocked AS blocked " +
+				"IF(Blocked, 'yes', 'no') AS blocked " +
 				"FROM pallets " +
 				"LEFT JOIN orders ON " +
-				"orders.Order_id = pallets.Order_id";*/
-
-		String query = "SELECT Cookie_Name AS cookie, " +
-				"Blocked AS blocked " +
-				"FROM pallets " +
-				"LEFT JOIN orders ON " +
-				"orders.Order_id = pallets.Order_id " +
-				"ORDER BY cookie ASC";
+				"orders.Order_id = pallets.Order_id ";
 
 		ArrayList<String> values = new ArrayList<>();
 		StringBuilder whereClause = new StringBuilder();
@@ -144,7 +121,7 @@ public class Database {
 			values.add(req.queryParams("to"));
 		}
 		if (req.queryParams("cookie") != null) {
-			addCondition(whereClause, "cookie = ?");
+			addCondition(whereClause, "Cookie_Name = ?");
 			values.add(req.queryParams("cookie"));
 		}
 		if (req.queryParams("blocked") != null) {

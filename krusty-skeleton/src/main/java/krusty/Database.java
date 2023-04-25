@@ -140,6 +140,7 @@ public class Database {
 			for (int i = 0; i < values.size(); i++) {
 				ps.setString(i + 1, values.get(i)); //setString metoden börjar alltid på 1. Därav i+1
 			}
+			System.out.println(query);
 			ResultSet rs = ps.executeQuery();
 			json = Jsonizer.toJson(rs, "pallets");
 		} catch(SQLException e){
